@@ -1,9 +1,16 @@
 package com.sip.ams.controllers;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.Formatter;
+
 import javax.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -58,9 +65,11 @@ public class ArticleController {
 		article.setProvider(provider);
 /// part upload
 		StringBuilder fileName = new StringBuilder();
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+		LocalDateTime date = LocalDateTime.now();
 		MultipartFile file = files[0];
-		Path fileNameAndPath = Paths.get(uploadDirectory, file.getOriginalFilename());
-		fileName.append(file.getOriginalFilename());
+		Path fileNameAndPath = Paths.get(uploadDirectory, date.format(formatter)+file.getOriginalFilename());
+		fileName.append(formatter.format(date).toString()+file.getOriginalFilename());
 		try {
 			Files.write(fileNameAndPath, file.getBytes());
 		} catch (IOException e) {
@@ -73,13 +82,21 @@ public class ArticleController {
 	}
 
 	@GetMapping("delete/{id}")
-	public String deleteProvider(@PathVariable("id") long id, Model model) {
-		Article artice = articleRepository.findById(id)
-				.orElseThrow(() -> new IllegalArgumentException("Invalid provider Id:" + id));
-		articleRepository.delete(artice);
-		model.addAttribute("articles", articleRepository.findAll());
-		return "article/listArticles";
-	}
+    public String deleteProvider(@PathVariable("id") long id, Model model) {
+        Article article = articleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid provider Id:" + id));
+        try {
+            Path fileNameAndPath1 =Paths.get(uploadDirectory,article.getPicture());
+            Files.deleteIfExists(fileNameAndPath1);
+        } catch (IOException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+        articleRepository.delete(article);
+        return "redirect:../list";
+        //model.addAttribute("articles", articleRepository.findAll());
+        //return "/article/listArticles";
+    }
 
 	@GetMapping("edit/{id}")
 	public String showArticleFormToUpdate(@PathVariable("id") long id, Model model) {
@@ -91,19 +108,56 @@ public class ArticleController {
 		return "article/updateArticle";
 	}
 
-	@PostMapping("edit/{id}")
-	public String updateArticle(@PathVariable("id") long id, @Valid Article article, BindingResult result, Model model,
-			@RequestParam(name = "providerId", required = false) Long p) {
+	@PostMapping("edit")
+	public String updateArticle(@Valid Article article, BindingResult result, Model model,
+			@RequestParam(name = "providerId", required = false) Long p,@RequestParam(name = "pictureA", required = false) String pic,@RequestParam("files") MultipartFile[] files) {
 		if (result.hasErrors()) {
-			article.setId(id);
+			
 			return "article/updateArticle";
 		}
+		
 		Provider provider = providerRepository.findById(p)
 				.orElseThrow(() -> new IllegalArgumentException("Invalid provider Id:" + p));
 		article.setProvider(provider);
+		
+		StringBuilder fileName = new StringBuilder();
+		MultipartFile file = files[0];
+		
+		if(file.getOriginalFilename().isEmpty()==false)
+		{ String datePattern = "yyyy-MM-ddHH-mm-ss";
+
+		SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+
+		String dateString = simpleDateFormat.format(new Date());
+		String filedate=dateString+file.getOriginalFilename();
+		Path fileNameAndPath = Paths.get(uploadDirectory,filedate);
+		fileName.append(filedate);
+		System.out.println("ddddd"+filedate);
+		 File filedelete = new File(uploadDirectory+"/"+pic);
+		 filedelete.delete();
+		try {
+		Files.write(fileNameAndPath, file.getBytes()); //upload
+		} catch (IOException e) {
+		e.printStackTrace();
+		}
+		article.setPicture(fileName.toString());
+		
+		
+		}
+		if(file.getOriginalFilename().isEmpty()==true)
+		{Path fileNameAndPath = Paths.get(uploadDirectory,pic);
+		fileName.append(pic);
+		System.out.println("bbbbb"+fileName);
+		
+		
+		article.setPicture(fileName.toString());
+		
+		}
+		
 		articleRepository.save(article);
-		model.addAttribute("articles", articleRepository.findAll());
-		return "article/listArticles";
+		return "redirect:../list";
+		//model.addAttribute("articles", articleRepository.findAll());
+		//return "article/listArticles";
 	}
 	@GetMapping("show/{id}")
 	public String showArticleDetails(@PathVariable("id") long id, Model model) {
